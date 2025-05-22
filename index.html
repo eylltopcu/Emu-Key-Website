@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>EMU Key Checkout</title>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -51,12 +51,36 @@
       color: white;
       cursor: not-allowed;
     }
-    .hidden { display: none; }
+    .hidden {
+      display: none;
+    }
+    #admin-buttons {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+    #occupied-list {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .modal {
+      background: #ffffff;
+      color: black;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      margin: auto;
+    }
   </style>
 </head>
 <body>
   <img src="https://www.emu.edu.tr/static/images/logos/emu-dau-logo.png" alt="EMU Logo" width="100" />
   <h1>EMU Key Checkout System</h1>
+
+  <div id="admin-buttons">
+    <button class="btn btn-white" onclick="showAddTeacher()">Add Teacher</button>
+    <button class="btn btn-white" onclick="showOccupied()">Occupied Rooms</button>
+  </div>
 
   <div id="home">
     <button class="btn btn-yellow" onclick="goTo('check-in-type')">Check In</button>
@@ -77,136 +101,200 @@
   </div>
 
   <div id="enter-id" class="hidden">
-    <h2>Enter Your ID:</h2>
-    <input type="text" id="user-id" />
+    <h2>Enter Your Name:</h2>
+    <input list="teacher-list" id="user-id"/>
+    <datalist id="teacher-list"></datalist>
     <button class="btn btn-yellow" onclick="submitCheckIn()">Submit</button>
     <p id="checkin-message"></p>
     <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
   </div>
 
   <div id="check-out" class="hidden">
-    <h2>Enter Your ID to Check Out:</h2>
-    <input type="text" id="checkout-id" />
+    <h2>Enter Your Name to Check Out:</h2>
+    <input list="teacher-list" id="checkout-id" />
     <button class="btn btn-yellow" onclick="submitCheckOut()">Check Out</button>
     <p id="checkout-message"></p>
     <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
   </div>
 
+  <div id="occupied-view" class="hidden">
+  <h2>Currently Occupied Rooms</h2>
+  <div id="occupied-list"></div>
+  <button class="btn btn-white" onclick="goTo('home')">Close</button>
+</div>
+
+
+<div id="add-teacher-view" class="hidden">
+  <h2>Add New Teacher</h2>
+  <div class="modal">
+    <input type="text" id="new-teacher-name" placeholder="Enter teacher name" />
+    <button class="btn btn-yellow" onclick="addTeacher()">Add</button>
+    <p id="add-teacher-message"></p>
+    <button class="btn btn-white" onclick="goTo('home')">Close</button>
+  </div>
+</div>
+
+
   <script>
-  
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyC73K6c_H-n2U3hxxHCk6clESfnMN_MUNw",
-  authDomain: "emu-key.firebaseapp.com",
-  databaseURL: "https://emu-key-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "emu-key",
-  storageBucket: "emu-key.firebasestorage.app",
-  messagingSenderId: "584793111426",
-  appId: "1:584793111426:web:1d4558f1f4137ff216ed9b",
-  measurementId: "G-4GKSH72R0H"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-
-    const teacherIDs = ["1", "22000207"];
+    const firebaseConfig = {
+      apiKey: "AIzaSyC73K6c_H-n2U3hxxHCk6clESfnMN_MUNw",
+      authDomain: "emu-key.firebaseapp.com",
+      databaseURL: "https://emu-key-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "emu-key",
+      storageBucket: "emu-key.appspot.com",
+      messagingSenderId: "584793111426",
+      appId: "1:584793111426:web:1d4558f1f4137ff216ed9b",
+      measurementId: "G-4GKSH72R0H"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
     const rooms = {
-      labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 230", "Lab 231", "Lab 238", "Lab 239", "Lab  ", "Lab  ", "Lab ", "Lab "],
+      labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 230", "Lab 231", "Lab 238", "Lab 239"],
       classes: ["Class 25", "Class 26", "Class 27", "Class 28", "Class 33", "Class 34", "Class 35", "Class 36", "Class 126", "Class 127", "Class 128", "Class 129"]
     };
 
     let currentType = null;
     let selectedRoom = null;
     let roomStatus = {};
+    let teacherMap = {}; // name -> id
+    let idToName = {};   // id -> name
 
     const roomRef = db.ref("roomStatus");
 
+    let isEnteringID = false;
+
     roomRef.on("value", (snapshot) => {
       roomStatus = snapshot.val() || {};
-      if (currentType) {
-        selectType(currentType);
+      if (!isEnteringID && currentType) {
+        renderRoomSelection(currentType);
       }
     });
 
+    db.ref("teachers").on("value", (snapshot) => {
+      const teachers = snapshot.val() || {};
+      teacherMap = {};
+      idToName = {};
+      const datalist = document.getElementById("teacher-list");
+      datalist.innerHTML = "";
+      Object.entries(teachers).forEach(([id, name]) => {
+        teacherMap[name.toLowerCase()] = id;
+        idToName[id] = name;
+        const option = document.createElement("option");
+        option.value = name;
+        datalist.appendChild(option);
+      });
+    });
+
     function goTo(section) {
-      document.querySelectorAll("#home, #check-in-type, #room-selection, #enter-id, #check-out")
+      isEnteringID = section === "enter-id";
+      document.querySelectorAll("#home, #check-in-type, #room-selection, #enter-id, #check-out, #occupied-view, #add-teacher-view")
         .forEach(div => div.classList.add("hidden"));
       document.getElementById(section).classList.remove("hidden");
     }
 
-
-
-
-
-function selectType(type) {
-  currentType = type;
-  selectedRoom = null;
-  const container = document.getElementById("room-buttons");
-  container.innerHTML = "";
-
-  rooms[type].forEach(room => {
-    const roomDiv = document.createElement("div");
-
-    if (roomStatus[room]) {
-      const teacherID = roomStatus[room];
-
-      // Fetch teacher name from Firebase "teachers" node
-      db.ref(`teachers/${teacherID}`).once("value", snapshot => {
-        const teacherName = snapshot.val() || "Unknown";
-        roomDiv.textContent = room;
-        roomDiv.className = "room taken";
-        roomDiv.title = `Taken by: ${teacherName}`;
-        container.appendChild(roomDiv);
-      });
-    } else {
-      roomDiv.textContent = room;
-      roomDiv.className = "room available";
-      roomDiv.onclick = () => chooseRoom(room);
-      container.appendChild(roomDiv);
+    function selectType(type) {
+      currentType = type;
+      selectedRoom = null;
+      renderRoomSelection(type);
     }
-  });
 
-  goTo("room-selection");
-}
-
-
-
+    function renderRoomSelection(type) {
+      const container = document.getElementById("room-buttons");
+      container.innerHTML = "";
+      rooms[type].forEach(room => {
+        const div = document.createElement("div");
+        const teacherID = roomStatus[room];
+        div.className = "room " + (teacherID ? "taken" : "available");
+        div.textContent = teacherID ? `${room} - ${idToName[teacherID] || "Unknown"}` : room;
+        if (!teacherID) {
+          div.onclick = () => chooseRoom(room);
+        }
+        container.appendChild(div);
+      });
+      goTo("room-selection");
+    }
 
     function chooseRoom(room) {
       selectedRoom = room;
+      document.getElementById("user-id").value = "";
+      document.getElementById("checkin-message").textContent = "";
       goTo("enter-id");
     }
 
     function submitCheckIn() {
-      const id = document.getElementById("user-id").value;
+      const name = document.getElementById("user-id").value.trim().toLowerCase();
+      const id = teacherMap[name];
       const msg = document.getElementById("checkin-message");
-      if (!teacherIDs.includes(id)) {
-        msg.textContent = "❌ Access denied. Only teachers can check in keys.";
+
+      if (!id) {
+        msg.textContent = "❌ Name not recognized.";
         return;
       }
-      db.ref(`roomStatus/${selectedRoom}`).set(id);
-      msg.textContent = "✅ Key check-in successful!";
-      goTo("home");
+
+      db.ref(`roomStatus/${selectedRoom}`).set(id).then(() => {
+        msg.textContent = `✅ Key check-in successful! Thank you, ${idToName[id]}!`;
+      }).catch(() => {
+        msg.textContent = "❌ Error saving data.";
+      });
     }
 
     function submitCheckOut() {
-      const id = document.getElementById("checkout-id").value;
+      const name = document.getElementById("checkout-id").value.trim().toLowerCase();
+      const id = teacherMap[name];
       const msg = document.getElementById("checkout-message");
-      roomRef.once("value", (snapshot) => {
-        const data = snapshot.val() || {};
-        for (const room in data) {
-          if (data[room] === id) {
-            db.ref(`roomStatus/${room}`).remove();
+
+      if (!id) {
+        msg.textContent = "❌ Name not recognized.";
+        return;
+      }
+
+      db.ref("roomStatus").once("value").then(snapshot => {
+        const updates = {};
+        let found = false;
+        Object.entries(snapshot.val() || {}).forEach(([room, tid]) => {
+          if (tid === id) {
+            updates[`roomStatus/${room}`] = null;
+            found = true;
           }
+        });
+        if (found) {
+          db.ref().update(updates).then(() => {
+            msg.textContent = `✅ Check-out complete. Thank you, ${idToName[id]}!`;
+          });
+        } else {
+          msg.textContent = `⚠️ No keys found for ${idToName[id]}.`;
         }
-        msg.textContent = "✅ Check-out complete. Thank you!";
+      });
+    }
+
+    function showOccupied() {
+      const div = document.getElementById("occupied-list");
+      div.innerHTML = "";
+      Object.entries(roomStatus).forEach(([room, id]) => {
+        const p = document.createElement("p");
+        p.textContent = `${room} → ${idToName[id] || "Unknown"}`;
+        div.appendChild(p);
+      });
+      goTo("occupied-view");
+    }
+
+    function showAddTeacher() {
+      document.getElementById("new-teacher-name").value = "";
+      document.getElementById("add-teacher-message").textContent = "";
+      goTo("add-teacher-view");
+    }
+
+    function addTeacher() {
+      const name = document.getElementById("new-teacher-name").value.trim();
+      if (!name) return;
+
+      const id = Date.now().toString(); // Simple unique ID
+      db.ref(`teachers/${id}`).set(name).then(() => {
+        document.getElementById("add-teacher-message").textContent = `✅ Added ${name}`;
+        document.getElementById("new-teacher-name").value = "";
+      }).catch(() => {
+        document.getElementById("add-teacher-message").textContent = "❌ Error adding teacher.";
       });
     }
   </script>
