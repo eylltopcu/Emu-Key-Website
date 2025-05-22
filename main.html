@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EMU Key Checkout</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #00205B;
+      color: white;
+      text-align: center;
+      padding: 2rem;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .btn-yellow {
+      background-color: #F7A800;
+      color: black;
+    }
+    .btn-white {
+      background-color: white;
+      color: black;
+    }
+    .room-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .room {
+      padding: 20px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .available {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    .taken {
+      background-color: #CCCCCC;
+      color: white;
+      cursor: not-allowed;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <img src="https://www.emu.edu.tr/static/images/logos/emu-dau-logo.png" alt="EMU Logo" width="100" />
+  <h1>EMU Key Checkout System</h1>
+
+  <div id="home">
+    <button class="btn btn-yellow" onclick="goTo('check-in-type')">Check In</button>
+    <button class="btn btn-white" onclick="goTo('check-out')">Check Out</button>
+  </div>
+
+  <div id="check-in-type" class="hidden">
+    <h2>Select Room Type</h2>
+    <button class="btn btn-yellow" onclick="selectType('labs')">Labs</button>
+    <button class="btn btn-yellow" onclick="selectType('classes')">Classes</button>
+    <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
+  </div>
+
+  <div id="room-selection" class="hidden">
+    <h2>Select a Room</h2>
+    <div class="room-grid" id="room-buttons"></div>
+    <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
+  </div>
+
+  <div id="enter-id" class="hidden">
+    <h2>Enter Your ID:</h2>
+    <input type="text" id="user-id" />
+    <button class="btn btn-yellow" onclick="submitCheckIn()">Submit</button>
+    <p id="checkin-message"></p>
+    <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
+  </div>
+
+  <div id="check-out" class="hidden">
+    <h2>Enter Your ID to Check Out:</h2>
+    <input type="text" id="checkout-id" />
+    <button class="btn btn-yellow" onclick="submitCheckOut()">Check Out</button>
+    <p id="checkout-message"></p>
+    <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
+  </div>
+
+  <script>
+  
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyC73K6c_H-n2U3hxxHCk6clESfnMN_MUNw",
+  authDomain: "emu-key.firebaseapp.com",
+  databaseURL: "https://emu-key-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "emu-key",
+  storageBucket: "emu-key.firebasestorage.app",
+  messagingSenderId: "584793111426",
+  appId: "1:584793111426:web:1d4558f1f4137ff216ed9b",
+  measurementId: "G-4GKSH72R0H"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+
+    const teacherIDs = ["1", "2", "T789"];
+    const rooms = {
+      labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 230", "Lab 231", "Lab 238", "Lab 239", "Lab  ", "Lab  ", "Lab ", "Lab "],
+      classes: ["Class 25", "Class 26", "Class 27", "Class 28", "Class 33", "Class 34", "Class 35", "Class 36", "Class 126", "Class 127", "Class 128", "Class 129"]
+    };
+
+    let currentType = null;
+    let selectedRoom = null;
+    let roomStatus = {};
+
+    const roomRef = db.ref("roomStatus");
+
+    roomRef.on("value", (snapshot) => {
+      roomStatus = snapshot.val() || {};
+      if (currentType) {
+        selectType(currentType);
+      }
+    });
+
+    function goTo(section) {
+      document.querySelectorAll("#home, #check-in-type, #room-selection, #enter-id, #check-out")
+        .forEach(div => div.classList.add("hidden"));
+      document.getElementById(section).classList.remove("hidden");
+    }
+
+    function selectType(type) {
+      currentType = type;
+      selectedRoom = null;
+      const container = document.getElementById("room-buttons");
+      container.innerHTML = "";
+      rooms[type].forEach(room => {
+        const btn = document.createElement("div");
+        btn.textContent = room;
+        btn.className = `room ${roomStatus[room] ? 'taken' : 'available'}`;
+        if (!roomStatus[room]) btn.onclick = () => chooseRoom(room);
+        container.appendChild(btn);
+      });
+      goTo("room-selection");
+    }
+
+    function chooseRoom(room) {
+      selectedRoom = room;
+      goTo("enter-id");
+    }
+
+    function submitCheckIn() {
+      const id = document.getElementById("user-id").value;
+      const msg = document.getElementById("checkin-message");
+      if (!teacherIDs.includes(id)) {
+        msg.textContent = "❌ Access denied. Only teachers can check in keys.";
+        return;
+      }
+      db.ref(`roomStatus/${selectedRoom}`).set(id);
+      msg.textContent = "✅ Key check-in successful!";
+      goTo("home");
+    }
+
+    function submitCheckOut() {
+      const id = document.getElementById("checkout-id").value;
+      const msg = document.getElementById("checkout-message");
+      roomRef.once("value", (snapshot) => {
+        const data = snapshot.val() || {};
+        for (const room in data) {
+          if (data[room] === id) {
+            db.ref(`roomStatus/${room}`).remove();
+          }
+        }
+        msg.textContent = "✅ Check-out complete. Thank you!";
+      });
+    }
+  </script>
+</body>
+</html>

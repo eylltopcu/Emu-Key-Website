@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EMU Key Checkout</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #00205B;
+      color: white;
+      text-align: center;
+      padding: 2rem;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .btn-yellow {
+      background-color: #F7A800;
+      color: black;
+    }
+    .btn-white {
+      background-color: white;
+      color: black;
+    }
+    .room-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .room {
+      padding: 20px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .available {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    .taken {
+      background-color: #CCCCCC;
+      color: white;
+      cursor: not-allowed;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <img src="emu-logo.png" alt="EMU Logo" width="100" />
+  <h1>EMU Key Checkout System</h1>
+  
+  <div id="home">
+    <button class="btn btn-yellow" onclick="goTo('check-in')">Check In</button>
+    <button class="btn btn-white" onclick="goTo('check-out')">Check Out</button>
+  </div>
+
+  <div id="check-in-type" class="hidden">
+    <h2>Select Room Type</h2>
+    <button class="btn btn-yellow" onclick="selectType('labs')">Labs</button>
+    <button class="btn btn-yellow" onclick="selectType('classes')">Classes</button>
+    <div><a href="#" onclick="goTo('home')">⬅ Back</a></div>
+  </div>
+
+  <div id="room-selection" class="hidden">
+    <h2>Select a Room</h2>
+    <div class="room-grid" id="room-buttons"></div>
+  </div>
+
+  <div id="enter-id" class="hidden">
+    <h2>Enter Your ID:</h2>
+    <input type="text" id="user-id" />
+    <button class="btn btn-yellow" onclick="submitCheckIn()">Submit</button>
+    <p id="checkin-message"></p>
+  </div>
+
+  <div id="check-out" class="hidden">
+    <h2>Enter Your ID to Check In:</h2>
+    <input type="text" id="checkout-id" />
+    <button class="btn btn-yellow" onclick="submitCheckOut()">Check In</button>
+    <p id="checkout-message"></p>
+    <div><a href="#" onclick="goTo('home')">⬅ Back</a></div>
+  </div>
+
+  <script>
+    const teacherIDs = ["T123", "T456", "T789"];
+    const rooms = {
+      labs: Array.from({ length: 11 }, (_, i) => `Lab ${i + 1}`),
+      
+      classes: Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`),
+    };
+    let currentType = null;
+    let selectedRoom = null;
+    let roomStatus = {};
+
+    function goTo(section) {
+      document.querySelectorAll("#home, #check-in-type, #room-selection, #enter-id, #check-out")
+        .forEach(div => div.classList.add("hidden"));
+      document.getElementById(section).classList.remove("hidden");
+    }
+
+    function selectType(type) {
+      currentType = type;
+      selectedRoom = null;
+      document.getElementById("room-buttons").innerHTML = "";
+      rooms[type].forEach(room => {
+        const btn = document.createElement("div");
+        btn.textContent = room;
+        btn.className = `room ${roomStatus[room] ? 'taken' : 'available'}`;
+        if (!roomStatus[room]) btn.onclick = () => chooseRoom(room);
+        document.getElementById("room-buttons").appendChild(btn);
+      });
+      goTo("room-selection");
+    }
+
+    function chooseRoom(room) {
+      selectedRoom = room;
+      goTo("enter-id");
+    }
+
+    function submitCheckIn() {
+      const id = document.getElementById("user-id").value;
+      const msg = document.getElementById("checkin-message");
+      if (!teacherIDs.includes(id)) {
+        msg.textContent = "❌ Access denied. Only teachers can check out keys.";
+        return;
+      }
+      roomStatus[selectedRoom] = id;
+      msg.textContent = "✅ Key check-out successful!";
+      goTo("home");
+    }
+
+    function submitCheckOut() {
+      const id = document.getElementById("checkout-id").value;
+      const msg = document.getElementById("checkout-message");
+      for (const room in roomStatus) {
+        if (roomStatus[room] === id) {
+          delete roomStatus[room];
+        }
+      }
+      msg.textContent = "✅ Check-in complete. Thank you!";
+    }
+  </script>
+</body>
+</html>
