@@ -115,7 +115,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 
-    const teacherIDs = ["1", "2", "T789"];
+    const teacherIDs = ["1", "22000207"];
+
     const rooms = {
       labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 230", "Lab 231", "Lab 238", "Lab 239", "Lab  ", "Lab  ", "Lab ", "Lab "],
       classes: ["Class 25", "Class 26", "Class 27", "Class 28", "Class 33", "Class 34", "Class 35", "Class 36", "Class 126", "Class 127", "Class 128", "Class 129"]
@@ -140,20 +141,43 @@ const db = firebase.database();
       document.getElementById(section).classList.remove("hidden");
     }
 
-    function selectType(type) {
-      currentType = type;
-      selectedRoom = null;
-      const container = document.getElementById("room-buttons");
-      container.innerHTML = "";
-      rooms[type].forEach(room => {
-        const btn = document.createElement("div");
-        btn.textContent = room;
-        btn.className = `room ${roomStatus[room] ? 'taken' : 'available'}`;
-        if (!roomStatus[room]) btn.onclick = () => chooseRoom(room);
-        container.appendChild(btn);
+
+
+
+
+function selectType(type) {
+  currentType = type;
+  selectedRoom = null;
+  const container = document.getElementById("room-buttons");
+  container.innerHTML = "";
+
+  rooms[type].forEach(room => {
+    const roomDiv = document.createElement("div");
+
+    if (roomStatus[room]) {
+      const teacherID = roomStatus[room];
+
+      // Fetch teacher name from Firebase "teachers" node
+      db.ref(`teachers/${teacherID}`).once("value", snapshot => {
+        const teacherName = snapshot.val() || "Unknown";
+        roomDiv.textContent = room;
+        roomDiv.className = "room taken";
+        roomDiv.title = `Taken by: ${teacherName}`;
+        container.appendChild(roomDiv);
       });
-      goTo("room-selection");
+    } else {
+      roomDiv.textContent = room;
+      roomDiv.className = "room available";
+      roomDiv.onclick = () => chooseRoom(room);
+      container.appendChild(roomDiv);
     }
+  });
+
+  goTo("room-selection");
+}
+
+
+
 
     function chooseRoom(room) {
       selectedRoom = room;
