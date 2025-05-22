@@ -71,6 +71,14 @@
       width: 300px;
       margin: auto;
     }
+    input[list] {
+      padding: 10px;
+      font-size: 16px;
+      width: 80%;
+      max-width: 300px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
@@ -102,8 +110,9 @@
 
   <div id="enter-id" class="hidden">
     <h2>Enter Your Name:</h2>
-    <input list="teacher-list" id="user-id"/>
+    <input list="teacher-list" id="user-id" autocomplete="off" placeholder="Start typing your name..." />
     <datalist id="teacher-list"></datalist>
+    <br />
     <button class="btn btn-yellow" onclick="submitCheckIn()">Submit</button>
     <p id="checkin-message"></p>
     <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
@@ -111,29 +120,29 @@
 
   <div id="check-out" class="hidden">
     <h2>Enter Your Name to Check Out:</h2>
-    <input list="teacher-list" id="checkout-id" />
+    <input list="teacher-list" id="checkout-id" autocomplete="off" placeholder="Start typing your name..." />
+    <br />
     <button class="btn btn-yellow" onclick="submitCheckOut()">Check Out</button>
     <p id="checkout-message"></p>
     <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
   </div>
 
   <div id="occupied-view" class="hidden">
-  <h2>Currently Occupied Rooms</h2>
-  <div id="occupied-list"></div>
-  <button class="btn btn-white" onclick="goTo('home')">Close</button>
-</div>
-
-
-<div id="add-teacher-view" class="hidden">
-  <h2>Add New Teacher</h2>
-  <div class="modal">
-    <input type="text" id="new-teacher-name" placeholder="Enter teacher name" />
-    <button class="btn btn-yellow" onclick="addTeacher()">Add</button>
-    <p id="add-teacher-message"></p>
+    <h2>Currently Occupied Rooms</h2>
+    <div id="occupied-list"></div>
     <button class="btn btn-white" onclick="goTo('home')">Close</button>
   </div>
-</div>
 
+  <div id="add-teacher-view" class="hidden">
+    <h2>Add New Teacher</h2>
+    <div class="modal">
+      <input type="text" id="new-teacher-name" placeholder="Enter teacher name" />
+      <br /><br />
+      <button class="btn btn-yellow" onclick="addTeacher()">Add</button>
+      <button class="btn btn-white" onclick="goTo('home')">Close</button>
+      <p id="add-teacher-message"></p>
+    </div>
+  </div>
 
   <script>
     const firebaseConfig = {
@@ -157,13 +166,14 @@
     let currentType = null;
     let selectedRoom = null;
     let roomStatus = {};
-    let teacherMap = {}; // name -> id
+    let teacherMap = {}; // name (lowercase) -> id
     let idToName = {};   // id -> name
 
     const roomRef = db.ref("roomStatus");
 
     let isEnteringID = false;
 
+    // Listen for changes in room status
     roomRef.on("value", (snapshot) => {
       roomStatus = snapshot.val() || {};
       if (!isEnteringID && currentType) {
@@ -171,6 +181,7 @@
       }
     });
 
+    // Listen for changes in teachers list and update datalist & maps
     db.ref("teachers").on("value", (snapshot) => {
       const teachers = snapshot.val() || {};
       teacherMap = {};
@@ -223,12 +234,18 @@
     }
 
     function submitCheckIn() {
-      const name = document.getElementById("user-id").value.trim().toLowerCase();
+      const inputName = document.getElementById("user-id").value.trim();
+      const name = inputName.toLowerCase();
       const id = teacherMap[name];
       const msg = document.getElementById("checkin-message");
 
       if (!id) {
         msg.textContent = "❌ Name not recognized.";
+        return;
+      }
+
+      if (!selectedRoom) {
+        msg.textContent = "❌ No room selected.";
         return;
       }
 
@@ -240,7 +257,8 @@
     }
 
     function submitCheckOut() {
-      const name = document.getElementById("checkout-id").value.trim().toLowerCase();
+      const inputName = document.getElementById("checkout-id").value.trim();
+      const name = inputName.toLowerCase();
       const id = teacherMap[name];
       const msg = document.getElementById("checkout-message");
 
@@ -254,17 +272,19 @@
         let found = false;
         Object.entries(snapshot.val() || {}).forEach(([room, tid]) => {
           if (tid === id) {
-            updates[`roomStatus/${room}`] = null;
+            updates[room] = null;
             found = true;
           }
         });
         if (found) {
-          db.ref().update(updates).then(() => {
+          db.ref("roomStatus").update(updates).then(() => {
             msg.textContent = `✅ Check-out complete. Thank you, ${idToName[id]}!`;
           });
         } else {
           msg.textContent = `⚠️ No keys found for ${idToName[id]}.`;
         }
+      }).catch(() => {
+        msg.textContent = "❌ Error checking out.";
       });
     }
 
@@ -288,6 +308,12 @@
     function addTeacher() {
       const name = document.getElementById("new-teacher-name").value.trim();
       if (!name) return;
+
+      // Check if teacher already exists (case-insensitive)
+      if (teacherMap[name.toLowerCase()]) {
+        document.getElementById("add-teacher-message").textContent = `⚠️ Teacher "${name}" already exists.`;
+        return;
+      }
 
       const id = Date.now().toString(); // Simple unique ID
       db.ref(`teachers/${id}`).set(name).then(() => {
