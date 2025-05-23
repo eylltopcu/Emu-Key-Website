@@ -99,6 +99,7 @@
     <h2>Select Room Type</h2>
     <button class="btn btn-yellow" onclick="selectType('labs')">Labs</button>
     <button class="btn btn-yellow" onclick="selectType('classes')">Classes</button>
+    <button class="btn btn-yellow" onclick="selectType('other')">Other</button>
     <div><a href="#" onclick="goTo('home')">⬅ Home</a></div>
   </div>
 
@@ -159,8 +160,9 @@
     const db = firebase.database();
 
     const rooms = {
-      labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 230", "Lab 231", "Lab 238", "Lab 239"],
-      classes: ["Class 25", "Class 26", "Class 27", "Class 28", "Class 33", "Class 34", "Class 35", "Class 36", "Class 126", "Class 127", "Class 128", "Class 129"]
+      labs: ["Lab 134", "Lab 135", "Lab 137", "Lab 227", "Lab 228","Lab 230", "Lab 231", "Lab 235", "Lab 236","Lab 238", "Lab 239"],
+      classes: ["Class 25", "Class 26", "Class 27", "Class 28", "Class 33", "Class 34", "Class 35", "Class 36", "Class 126", "Class 127", "Class 128", "Class 129"],
+      other: ["Amphi", "Library"]
     };
 
     let currentType = null;
@@ -233,28 +235,51 @@
       goTo("enter-id");
     }
 
-    function submitCheckIn() {
-      const inputName = document.getElementById("user-id").value.trim();
-      const name = inputName.toLowerCase();
-      const id = teacherMap[name];
-      const msg = document.getElementById("checkin-message");
+function submitCheckIn() {
+  const inputName = document.getElementById("user-id").value.trim();
+  const name = inputName.toLowerCase();
+  const id = teacherMap[name];
+  const msg = document.getElementById("checkin-message");
 
-      if (!id) {
-        msg.textContent = "❌ Name not recognized.";
-        return;
+  if (!id) {
+    msg.textContent = "❌ Name not recognized.";
+    return;
+  }
+
+  if (!selectedRoom) {
+    msg.textContent = "❌ No room selected.";
+    return;
+  }
+
+  // Check if teacher already has a key
+  db.ref("roomStatus").once("value").then(snapshot => {
+    const rooms = snapshot.val() || {};
+    let occupiedRoom = null;
+
+    for (const [room, tid] of Object.entries(rooms)) {
+      if (tid === id) {
+        occupiedRoom = room;
+        break;
       }
-
-      if (!selectedRoom) {
-        msg.textContent = "❌ No room selected.";
-        return;
-      }
-
-      db.ref(`roomStatus/${selectedRoom}`).set(id).then(() => {
-        msg.textContent = `✅ Key check-in successful! Thank you, ${idToName[id]}!`;
-      }).catch(() => {
-        msg.textContent = "❌ Error saving data.";
-      });
     }
+
+    if (occupiedRoom) {
+      msg.textContent = `⚠️ You already have a key checked out for "${occupiedRoom}". Please return it before taking another.`;
+      return;
+    }
+
+    // Proceed with check-in
+    db.ref(`roomStatus/${selectedRoom}`).set(id).then(() => {
+      msg.textContent = `✅ Key check-in successful! Thank you, ${idToName[id]}!`;
+    }).catch(() => {
+      msg.textContent = "❌ Error saving data.";
+    });
+  }).catch(() => {
+    msg.textContent = "❌ Error checking current room assignments.";
+  });
+}
+
+
 
     function submitCheckOut() {
       const inputName = document.getElementById("checkout-id").value.trim();
@@ -326,3 +351,4 @@
   </script>
 </body>
 </html>
+  
